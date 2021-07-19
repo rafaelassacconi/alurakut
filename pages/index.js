@@ -11,7 +11,7 @@ function ProfileSidebar(properties) {
       <hr />
 
       <p>
-        <a className="boxLink" href={`https://github.com/${properties.githubUser}`}>
+        <a className="boxLink" href={`https://github.com/${properties.githubUser}`} target="_blank">
           @{properties.githubUser}
         </a>
       </p>
@@ -30,17 +30,16 @@ function ProfileRelationsBox(properties) {
         {properties.title} ({properties.items.length})
       </h2>
       <ul>
-         {/* properties.items.map((item) => {
-           console.log(item);
+         {properties.items.slice(0, 6).map((item) => {
           return (
-            <li key={item}>
-              <a href={`https://github.com/${item.avatar_url}`}>
+            <li key={item.id}>
+              <a href={`https://github.com/${item.login}`} target="_blank">
                 <img src={item.avatar_url} />
                 <span>{item.login}</span>
               </a>
             </li>
           )
-        })*/}
+        })}
       </ul>
     </ProfileRelationsBoxWrapper>
   )
@@ -49,25 +48,45 @@ function ProfileRelationsBox(properties) {
 export default function Home() {
   const githubUser = 'rafaelassacconi';
 
+  // Communities
+  const [communities, setCommunities] = React.useState([]);
 
-  const myCommunities = [{
-    id: '12802378123789378912789789123896123', 
-    title: 'Queria sorvete, mas era feijão',
-    image: 'https://picsum.photos/90/110?random=1'
-  },
-  {
-    id: '12802378123789378912789789123896124', 
-    title: 'Eu abro a geladeira pra pensar',
-    image: 'https://picsum.photos/90/110?random=2'
-  },
-  {
-    id: '12802378123789378912789789123896125', 
-    title: 'Só observo',
-    image: 'https://picsum.photos/90/110?random=3'
-  }]
+  React.useEffect(function() {
+    fetch('https://graphql.datocms.com/', {
+      method: 'POST',
+      headers: {
+        'Authorization': process.env.DATO_TOKEN,
+        'Content-Type': 'application/json',
+        'Accept': 'application/json',
+      },
+      body: JSON.stringify({ "query": `query {
+        allCommunities {
+          id 
+          title
+          link
+          imageUrl
+          creatorSlug
+        }
+      }` })
+    })
+    .then((response) => response.json())
+    .then((responseFinal) => {
+      setCommunities(responseFinal.data.allCommunities);
+    })
+  }, [])
 
-  const [communities, setCommunities] = React.useState(myCommunities);
+  // Followers
+  const [followers, setFollowers] = React.useState([]);
 
+  React.useEffect(function() {
+    fetch('https://api.github.com/users/rafaelassacconi/followers')
+    .then((response) => response.json())
+    .then((responseFinal) => {
+      setFollowers(responseFinal);
+    })
+    }, [])
+
+  // Favorite People
   const favoritePeople = [
     'juunegreiros',
     'omariosouto',
@@ -76,18 +95,6 @@ export default function Home() {
     'marcobrunodev',
     'felipefialho'
   ]
-
-  const [followers, setFollowers] = React.useState([]);
-
-  React.useEffect(function() {
-    fetch('https://api.github.com/users/rafaelassacconi/followers')
-    .then(function (responseServer) {
-      return responseServer.json();
-    })
-    .then(function(responseFinal) {
-      setFollowers(responseFinal);
-    })
-  }, [])
 
   return (
     <>
@@ -117,15 +124,32 @@ export default function Home() {
             <h2 className="subTitle">O que você deseja fazer?</h2>
 
             <form onSubmit={function handleCreateCommunity(e) {
-              e.preventDefault();
-              const formData = new FormData(e.target);
-              const community = {
-                id: new Date().toISOString(),
-                title: formData.get('title'),
-                image: formData.get('image'),
-              }
-              const updatedCommunities = [...communities, community];
-              setCommunities(updatedCommunities);
+                e.preventDefault();
+                const formData = new FormData(e.target);
+
+                console.log('Campo: ', formData.get('title'));
+                console.log('Campo: ', formData.get('image'));
+
+                const community = {
+                  title: formData.get('title'),
+                  link: formData.get('link'),
+                  imageUrl: formData.get('image'),
+                  creatorSlug: githubUser,
+                }
+
+                fetch('/api/communities', {
+                  method: 'POST',
+                  headers: {
+                    'Content-Type': 'application/json',
+                  },
+                  body: JSON.stringify(community)
+                })
+                .then(async (response) => {
+                  const data = await response.json();
+                  const community = data.createdData;
+                  const updatedCommunity = [...communities, community];
+                  setCommunities(updatedCommunity)
+                })
             }}>
               <div>
                 <input
@@ -142,7 +166,13 @@ export default function Home() {
                   aria-label="Coloque uma URL para usarmos de capa"
                 />
               </div>
-
+              <div>
+                <input
+                  placeholder="Coloque uma URL para o link da comunidade"
+                  name="link"
+                  aria-label="Coloque uma URL para o link da comunidade"
+                />
+              </div>
               <button>
                 Criar comunidade
               </button>
@@ -161,8 +191,8 @@ export default function Home() {
               {communities.map((item) => {
                 return (
                   <li key={item.id}>
-                    <a href={`/users/${item.title}`}>
-                      <img src={item.image} />
+                    <a href={item.link} target="_blank">
+                      <img src={item.imageUrl} />
                       <span>{item.title}</span>
                     </a>
                   </li>
@@ -179,7 +209,7 @@ export default function Home() {
               {favoritePeople.map((item) => {
                 return (
                   <li key={item}>
-                    <a href={`/users/${item}`}>
+                    <a href={`https://github.com/${item}`} target="_blank">
                       <img src={`https://github.com/${item}.png`} />
                       <span>{item}</span>
                     </a>
@@ -187,7 +217,7 @@ export default function Home() {
                 )
               })}
             </ul>
-          </ProfileRelationsBoxWrapper>          
+          </ProfileRelationsBoxWrapper>
         </div>
       </MainGrid>
     </>
